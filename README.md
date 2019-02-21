@@ -14,7 +14,9 @@
 0. Setup
     * Source the simulated robot: `bash ~/catkin_ws/thing2.sh sim`
 1. Launch the sawyer world: `roslaunch grasping sawyer_world.launch`
-2. Launch moveit: `roslaunch sawyer_moveit_config sawyer_moveit.launch electric_gripper:=true rviz_config:=$(rospack find grasping)/config/rviz.rviz`
-3. Launch camera: ``
+2. Launch moveit and rviz: `roslaunch grasping moveit_rviz.launch`
+3. Save perception images: `~/catkin_ws/src/perception/tools/capture_images.py --config_filename ~/catkin_ws/src/grasping/config/capture_images.yaml NAME`
+4. Run gqcnn on saved images: `python examples/policy.py --config_filename /usr0/home/tweng/catkin_ws/src/grasping/config/policy.yaml`
+
 
 

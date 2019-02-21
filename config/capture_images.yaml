@@ -1,0 +1,20 @@
+output_dir: /usr0/home/tweng/data/rgbd
+calib_dir: /usr0/home/tweng/catkin_ws/src/grasping/config/calib/
+
+sensors:
+ primesense:
+   type: primesense_ros
+   frame: primesense
+   auto_white_balance: 0
+   num_images: 3
+#  ensenso:
+#    type: ensenso
+#    frame: ensenso
+#    num_images: 3
+  # phoxi:
+  #   type: phoxi
+  #   frame: phoxi
+  #   device_name: 1703005
+  #   size: small
+  #   num_images: 1
+    

@@ -10,7 +10,7 @@
     </include>
 
     <include>
-      <pose>1 0 2 0 1.57 0</pose>
+      <pose>1 0 1.75 0 1.57 0</pose>
       <uri>model://asus_xtion_pro_camera</uri>
     </include>
 
@@ -18,10 +18,18 @@
       <pose>1 0 0 0 0 0</pose>
       <uri>model://cafe_table</uri>
     </include>
+    <include>
+      <pose>1 0.915 0 0 0 0</pose>
+      <uri>model://cafe_table</uri>
+    </include>
+    <include>
+      <pose>1 -0.915 0 0 0 0</pose>
+      <uri>model://cafe_table</uri>
+    </include>
 
     <include>
       <static>false</static>
-      <pose>.8 0 1.0 0 0 -1.57</pose>
+      <pose>1.0 0 1.0 0 0 -1.57</pose>
       <uri>model://hammer</uri>
     </include>
 
