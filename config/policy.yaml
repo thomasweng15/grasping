@@ -10,7 +10,7 @@ calib_dir: /usr0/home/tweng/catkin_ws/src/grasping/config/calib
 # policy params
 policy:
   # gqcnn params
-  gqcnn_model: /usr0/home/tweng/data/models/GQ-Image-Wise
+  gqcnn_model: /usr0/home/tweng/data/models/GQ
   
   # optimization params
   num_seed_samples: 200

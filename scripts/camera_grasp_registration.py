@@ -3,68 +3,54 @@ import matplotlib.pyplot as plt
 import numpy as np 
 np.set_printoptions(suppress=True)
 
+###
+## Go from grasp point to camera point
+###
+
+# Initial transform from inertial frame to ee
+world_ee_init_tf = np.array([
+    [1, 0, 0, 0],
+    [0, 1, 0, 0],
+    [0, 0, 1, 1], # 1m overhead
+    [0, 0, 0, 1]
+])
+
+# Transform at grasp time from inertial frame to ee
+world_ee_grasp_tf = np.array([
+    [1, 0, 0, 0],
+    [0, 1, 0, 0],
+    [0, 0, 1, 0],
+    [0, 0, 0, 1]
+])
+
+# Transform from pose to camera origin
+ee_camera_tf = np.array([
+    [0.3679918,  0.9298182, -0.0045070, -0.038245],
+    [-0.9298133,  0.3679529, -0.0076098, -0.038245],
+    [-0.0054174,  0.0069910,  0.9999609, 0.147432],
+    [0, 0, 0, 1]
+])
+
 # Camera intrinsic matrix
 K = np.array([
     [618.976990, 0.0, 324.686005, 0],
     [0.0, 618.997620, 234.163773, 0],
     [0.0, 0.0, 1.0, 0]])
 
-### Test transform from 3D point in camera frame to 2D intrinsic matrix.
-def get_px_from_camera_pt(K, p_hm)
-    # Multiply with K to get homogeneous pixel
-    px_hm = np.matmul(K, p_hm.T)
+# Transform into camera frame
+ee_camera_init_tf = np.matmul(world_ee_init_tf, ee_camera_tf) # TODO double check the directionality
 
-    # Perspective division to set w back to 1
-    px_hm = px_hm / px_hm[2]
+# Get the camera matrix
+# http://ksimek.github.io/2013/08/13/intrinsic/
+camera_mat = np.matmul(K, ee_camera_init_tf)
 
-    # Round and extract pixel coordinates
-    px, py, _ = np.rint(px_hm)
-    return px, py
+# Get 3D world point we want to find in 2D pixel coords
+# TODO adjust for offset of ee from grasp point
+grasp_pt = world_ee_grasp_tf[0:3, 3]
+hm_grasp_pt = np.concatenate((grasp_pt, np.array([1])))
 
-# Homogeneous 3D point in camera frame
-p_hm = np.array([0.1, 0.1, 0.4, 1])
+# Get 2D pixel coords
+hm_grasp_px = np.matmul(camera_mat, hm_grasp_pt)
+grasp_px = np.rint((hm_grasp_px / hm_grasp_px[2])[0:2])
 
-px, py = get_px_from_camera_pt(K, p_hm)
-
-
-### Get real 3D point from snapshots-thomas/2019-02-13-18-53-17SensorSnapshot.yaml
-# Joint angles from snapshots-thomas/2019-02-13-18-53-17SensorSnapshot.yaml
-joint_angles = np.array([-1.450477425252096, -1.871162239705221, -0.8121445814715784, -2.029160801564352, 1.570809483528137, 1.298530101776123])
-
-# Compute transform from world to tool frame with forward kinematics
-def fk(joint_angles):
-    # dummy function
-    return np.array([
-        [1 0 0 0.0], 
-        [0 0 0 0.0], 
-        [0 0 0 0.0],
-        [0 0 0 1]
-    ])
-g_wt_o = fk(joint_angles_overhead)
-g_wt_g = fk(joint_angles_grasp)
-
-# Get transform from world to camera frame
-g_wc_overhead = g_wt_overhead*g_tc
-
-# # get real-world end effector position
-# p_ee = g_wt_g[:, 1:3]
-
-def get_tool_camera_tf():
-    xyz = np.array([-0.038245, -0.016097, 0.147432])
-
-    # Generated rotation matrix from rpy
-    R = np.array([
-        [0.3679918,  0.9298182, -0.0045070],
-        [-0.9298133,  0.3679529, -0.0076098],
-        [-0.0054174,  0.0069910,  0.9999609]
-    ])
-    return np.vstack((np.column_stack((R, xyz)), np.array([0, 0, 0, 1])))
-
-# Transform of tool frame to camera frame
-g_tc = get_tool_camera_tf()
-
-# Transform of camera frame to tool frame
-g_ct = np.linalg.inv(g_tc)
-
-print(g_tc)
-print(g_ct)
+print(grasp_px)
