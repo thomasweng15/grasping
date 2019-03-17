@@ -38,11 +38,11 @@ K = np.array([
     [0.0, 0.0, 1.0, 0]])
 
 # Transform into camera frame
-ee_camera_init_tf = np.matmul(world_ee_init_tf, ee_camera_tf) # TODO double check the directionality
+world_camera_init_tf = np.matmul(world_ee_init_tf, ee_camera_tf) # TODO double check the directionality
 
 # Get the camera matrix
 # http://ksimek.github.io/2013/08/13/intrinsic/
-camera_mat = np.matmul(K, ee_camera_init_tf)
+camera_mat = np.matmul(K, world_camera_init_tf)
 
 # Get 3D world point we want to find in 2D pixel coords
 # TODO adjust for offset of ee from grasp point
@@ -54,3 +54,12 @@ hm_grasp_px = np.matmul(camera_mat, hm_grasp_pt)
 grasp_px = np.rint((hm_grasp_px / hm_grasp_px[2])[0:2])
 
 print(grasp_px)
+
+# Get grasp rotation
+# https://math.stackexchange.com/questions/87338/change-in-rotation-matrix 
+# TODO need to verify reference conventions
+R_init = world_camera_init_tf[0:3, 0:3]
+R_grasp = world_ee_grasp_tf[0:3, 0:3]
+grasp_rot = np.matmul(R_init.T, R_grasp)
+
+print (grasp_rot)
