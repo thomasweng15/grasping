@@ -1,65 +1,105 @@
 
+import os
 import matplotlib.pyplot as plt
 import numpy as np 
+import skimage
+from pyquaternion import Quaternion as Quat
 np.set_printoptions(suppress=True)
 
-###
-## Go from grasp point to camera point
-###
+def get_transform_from_pose(pose):
+    quat = Quat(pose[6], pose[3], pose[4], pose[5]) # Convert from ROS to pyquaternion convention
+    transform = quat.transformation_matrix
+    transform[0:3, 3] += pose[0:3]
+    return np.linalg.inv(transform)
 
-# Initial transform from inertial frame to ee
-world_ee_init_tf = np.array([
-    [1, 0, 0, 0],
-    [0, 1, 0, 0],
-    [0, 0, 1, 1], # 1m overhead
-    [0, 0, 0, 1]
-])
+def get_px_coords(pose):
+    K = np.array([
+        [618.976990, 0.0, 324.686005],
+        [0.0, 618.997620, 234.163773],
+        [0.0, 0.0, 1.0]
+    ])
 
-# Transform at grasp time from inertial frame to ee
-world_ee_grasp_tf = np.array([
-    [1, 0, 0, 0],
-    [0, 1, 0, 0],
-    [0, 0, 1, 0],
-    [0, 0, 0, 1]
-])
+    scale = 2.54
 
-# Transform from pose to camera origin
-ee_camera_tf = np.array([
-    [0.3679918,  0.9298182, -0.0045070, -0.038245],
-    [-0.9298133,  0.3679529, -0.0076098, -0.038245],
-    [-0.0054174,  0.0069910,  0.9999609, 0.147432],
-    [0, 0, 0, 1]
-])
+    # u = K[0,0]/2.54*pose[0] / pose[2] + K[0,2]
+    # v = K[1,1]/2.54*pose[1] / pose[2] + K[1,2]
+    # return (u, v)
 
-# Camera intrinsic matrix
-K = np.array([
-    [618.976990, 0.0, 324.686005, 0],
-    [0.0, 618.997620, 234.163773, 0],
-    [0.0, 0.0, 1.0, 0]])
+    K[0,0] = K[0,0]/scale
+    K[1,1] = K[1,1]/scale
+    res = np.matmul(K, pose[0:3])
+    res = res / res[2]
+    return res
 
-# Transform into camera frame
-world_camera_init_tf = np.matmul(world_ee_init_tf, ee_camera_tf) # TODO double check the directionality
+def get_grasp_pose_pixels(tool0_grasp_pose_world_frame):
+    # Adjust tool0_grasp_pose_world_frame for tool0 offset
+    tool0_grasp_pose_world_frame[2] -= .0226
 
-# Get the camera matrix
-# http://ksimek.github.io/2013/08/13/intrinsic/
-camera_mat = np.matmul(K, world_camera_init_tf)
+    tool0_overhead_pose_world_frame = [0.07, 0.818, 0.6, -0.831469612676492, 0.5555702324599514, 0.0, 0.0]
+    world_tool0_transform = get_transform_from_pose(tool0_overhead_pose_world_frame)
+    
+    camera_tool0_transform = np.array([ 
+        [0.36685286, 0.93018527, -0.01320435, -0.03807055],
+        [-0.9302708, 0.3668722, -0.00101334, -0.0164097],
+        [0.00390172, 0.01265536, 0.99991231, 0.14671274],
+        [0.,         0.,         0.,         1.]])
+    
+    world_camera_transform = np.matmul(np.linalg.inv(camera_tool0_transform), world_tool0_transform)
+    # world_camera_transform = np.matmul(camera_tool0_transform, world_tool0_transform)
+    # print("tool in world", tool0_grasp_pose_world_frame)
+    # print("camera in world tf", world_camera_transform.dot(np.array([0, 0, 0, 1])))
+    tool0_grasp_position_camera_frame = world_camera_transform.dot(np.hstack((tool0_grasp_pose_world_frame[0:3], 1)))
+    # print("tool pos in camera", tool0_grasp_position_camera_frame)
+    # tool0_grasp_position_camera_frame = np.array([0., 0.12, 0.2])
+    
+    # tool0_grasp_position_tool0_frame = np.matmul(world_tool0_transform, np.hstack((tool0_grasp_pose_world_frame[0:3], 1)))
+    # tool0_grasp_position_camera_frame = np.linalg.inv(camera_tool0_transform).dot(tooldiff)
+    # tool0_grasp_position_camera_frame = camera_tool0_transform.dot(tool0_grasp_position_tool0_frame)
+    # print("tool grasp position tool frame tf", tool0_grasp_position_tool0_frame)
 
-# Get 3D world point we want to find in 2D pixel coords
-# TODO adjust for offset of ee from grasp point
-grasp_pt = world_ee_grasp_tf[0:3, 3]
-hm_grasp_pt = np.concatenate((grasp_pt, np.array([1])))
+    pixels = get_px_coords(tool0_grasp_position_camera_frame)
+    return pixels
 
-# Get 2D pixel coords
-hm_grasp_px = np.matmul(camera_mat, hm_grasp_pt)
-grasp_px = np.rint((hm_grasp_px / hm_grasp_px[2])[0:2])
+def get_pose_and_rgb_im(dirname):
+    files = os.listdir(dirname)
 
-print(grasp_px)
+    IKPlans = sorted([f for f in files if "IKPlan.yaml" in f])
+    IKPlan = IKPlans[-1]
 
-# Get grasp rotation
-# https://math.stackexchange.com/questions/87338/change-in-rotation-matrix 
-# TODO need to verify reference conventions
-R_init = world_camera_init_tf[0:3, 0:3]
-R_grasp = world_ee_grasp_tf[0:3, 0:3]
-grasp_rot = np.matmul(R_init.T, R_grasp)
+    with open("%s/%s" % (dirname, IKPlan), "r") as f:
+        lines = [line.rstrip('\n') for line in f]
+        for i, line in enumerate(lines):
+            if "end_pose_world_frame" in line:
+                pose_str = line + lines[i+1]
+                pose = [float(x) for x in pose_str.split('[')[1].split(']')[0].split(',')]
+                break
+    
+    # Get RGB image
+    RGBImages = sorted([f for f in files if "RGBImage" in f], reverse=True)
+    RGBImage = RGBImages[-2]
+    rgb_im = skimage.io.imread("%s/%s" % (dirname, RGBImage))
 
-print (grasp_rot)
+    return pose, rgb_im
+
+# Visualize grasp point
+def visualize_grasp(name, im, px, py):
+    plt.imshow(im)
+    plt.scatter(px, py, color='red', marker='o')
+    plt.savefig("%s.png" % name)
+    plt.close()
+
+dirs = [
+    "attempt-2019-03-22-16-16-08",
+    "attempt-2019-03-22-16-16-24",
+    "attempt-2019-03-22-16-16-40",
+    "attempt-2019-03-22-16-16-58",
+    "attempt-2019-03-22-16-17-15"
+]
+
+for dirname in dirs:
+    grasp_pose, rgb_im = get_pose_and_rgb_im("../data/" + dirname)
+    pixels = get_grasp_pose_pixels(grasp_pose)
+    print(pixels)
+    visualize_grasp(dirname, rgb_im, pixels[0], pixels[1])
+
+
