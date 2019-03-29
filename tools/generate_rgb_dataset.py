@@ -1,9 +1,10 @@
 
+import os
 import skimage
 import numpy as np
 import matplotlib.pyplot as plt
 
-def get_crops(rgb_im, depth_im, crop_width=96, stride=1):
+def get_crops(rgb_im, depth_im, crop_width=96, stride=5):
     rgb_crops = []
     depth_crops = []
     height, width, _ = rgb_im.shape
@@ -32,18 +33,27 @@ def visualize(rgb_im, depth_im):
     plt.imshow(depth_im, cmap=plt.cm.gray_r)
     plt.show()
 
-# Get input images 
-# TODO iterate over all images in directory
-input_dirname = "/home/tweng/fcgqcnn_env/snapshots-thomas"
-rgb_fname = "2019-02-13-18-53-1712345RGBImage.png"
-rgb_im = skimage.data.imread("%s/%s"%(input_dirname, rgb_fname))
-depth_fname = "2019-02-13-18-53-1712345DepthImage.png"
-depth_im = skimage.data.imread("%s/%s"%(input_dirname, depth_fname), as_gray=True)
+def get_depth_fname(rgb_fname, files):
+    prefix = rgb_fname.split('RGB')[0]
+    for f in files:
+        if prefix in f and 'Depth' in f:
+            return f
+    return ''
 
-# Crop rgb and depth to 96 x 96 tiles
-rgb_crops, depth_crops = get_crops(rgb_im, depth_im)
+# Get input images
+# TODO also get the label
+if __name__ == '__main__':
+    input_path = "/home/tweng/fcgqcnn_env/snapshots-thomas-noheight"
+    dirs = [f for f in os.listdir(input_path)]
+    for d in dirs:
+        # Read images 
+        rgb_im = skimage.data.imread("%s/%s/color_0.png" % (input_path, d))
+        depth_im = np.load("%s/%s/depth_0.npy" % (input_path, d))
 
-# Save 96 x 96 tiles
-# save_crops(rgb_crops, depth_crops)
+        # Crop rgb and depth to 96 x 96 tiles
+        rgb_crops, depth_crops = get_crops(rgb_im, depth_im)
+            
+        # Save 96 x 96 tiles
+        # save_crops(rgb_crops, depth_crops)
 
-
+        break
