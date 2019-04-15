@@ -19,10 +19,10 @@ def get_pixel_coords(pose):
         [0.0, 0.0, 1.0]
     ])
 
-    scale_x = 0.965 / 640 * K[0,0]
-    scale_y = 0.965 / 480 * K[1,1]
-    # scale_x = 1
-    # scale_y = 1
+    # scale_x = 0.965 / 640 * K[0,0]
+    # scale_y = 0.965 / 480 * K[1,1]
+    scale_x = 1.27
+    scale_y = 1.27
 
     K[0,0] = K[0,0]/scale_x
     K[1,1] = K[1,1]/scale_y
@@ -34,31 +34,29 @@ def get_grasp_pose_camera_frame(tool0_overhead_pose_world_frame, tool0_grasp_pos
     # Adjust tool0_grasp_pose_world_frame for tool0 offset
     tool0_grasp_pose_world_frame[2] -= 0.0226
 
-    world_tool0_overhead_transform = get_transform_from_pose(tool0_overhead_pose_world_frame)
+    world_to_tool0_overhead_tf = get_transform_from_pose(tool0_overhead_pose_world_frame)
     
-    camera_tool0_transform = np.array([ 
+    camera_to_tool0_tf = np.array([ 
         [0.36685286, 0.93018527, -0.01320435, -0.03807055],
         [-0.9302708, 0.3668722, -0.00101334, -0.0164097],
         [0.00390172, 0.01265536, 0.99991231, 0.14671274],
         [0.,         0.,         0.,         1.]])
     
-    world_camera_transform = np.linalg.inv(camera_tool0_transform).dot(np.linalg.inv(world_tool0_overhead_transform))
+    world_to_overhead_camera_tf = np.linalg.inv(camera_to_tool0_tf).dot(np.linalg.inv(world_to_tool0_overhead_tf))
 
-    # TODO double check that you are getting the grasp pose not the camera position 
-    world_tool0_grasp_transform = get_transform_from_pose(tool0_grasp_pose_world_frame)
-    tool0_grasp_pose_camera_frame = world_camera_transform.dot(world_tool0_grasp_transform)
+    world_to_tool0_grasp_tf = get_transform_from_pose(tool0_grasp_pose_world_frame)
+    tool0_grasp_pose_camera_frame = world_to_overhead_camera_tf.dot(world_to_tool0_grasp_tf)
 
     return tool0_grasp_pose_camera_frame
 
-def get_grasp_pose_theta(grasp_pose_camera_frame):
+def get_grasp_pose_theta(overhead_pose, grasp_pose):
     # Rotation in the z axis
-    rot_mat = grasp_pose_camera_frame[0:3, 0:3]
-    quat = Quat(matrix=rot_mat)
-    th_z = quat.radians
+    q_overhead = Quat(overhead_pose[3], overhead_pose[0], overhead_pose[1], overhead_pose[2])
+    q_grasp = Quat(grasp_pose[3], grasp_pose[0], grasp_pose[1], grasp_pose[2])
 
-    print(th_z)
-    # if th_z > np.pi/2:
-        # th_z = th_z - np.pi
+    q_diff = q_grasp * q_overhead.inverse
+
+    th_z = q_diff.radians
 
     print(th_z)
     print(np.rad2deg(th_z))
@@ -72,7 +70,6 @@ def get_pose(dirname, filestr):
         for i, line in enumerate(lines):
             if "Tool Pose:" in line:
                 pose = [float(l.split("  - ")[-1]) for l in lines[i+1:i+8]]
-                # print(pose)
                 return pose
     return None
 
@@ -93,8 +90,6 @@ def visualize_grasp(name, pixels, theta, grasp_pos):
     plt.scatter(pixels[0], pixels[1], s=5, color='red', marker='.')
     plt.plot([pixels[0]+10*np.cos(theta), pixels[0]+30*np.cos(theta)], [pixels[1]+10*np.sin(theta), pixels[1]+30*np.sin(theta)], color='red')
     plt.plot([pixels[0]-10*np.cos(theta), pixels[0]-30*np.cos(theta)], [pixels[1]-10*np.sin(theta), pixels[1]-30*np.sin(theta)], color='red')
-    # plt.plot([pixels[0]+10, pixels[0]+20], [pixels[1]+10, pixels[1]+20], color='red')
-    # plt.plot([pixels[0]-10, pixels[0]-20], [pixels[1]-10, pixels[1]-20], color='red')
     plt.subplot(222)
     plt.imshow(im_approach)
     plt.subplot(223)
@@ -116,7 +111,7 @@ if __name__ == '__main__':
 
         grasp_pose_camera_frame = get_grasp_pose_camera_frame(overhead_pose, grasp_pose)
         pixels = get_pixel_coords(grasp_pose_camera_frame[0:4, 3])
-        theta = get_grasp_pose_theta(grasp_pose_camera_frame)
+        theta = get_grasp_pose_theta(overhead_pose, grasp_pose)
 
         visualize_grasp(folder, pixels, theta, grasp_pose[0:3])
 
