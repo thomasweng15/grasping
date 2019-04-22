@@ -1,13 +1,18 @@
 
 import os
 import matplotlib.pyplot as plt
+from mpl_toolkits import mplot3d
 import numpy as np 
 import skimage
 from pyquaternion import Quaternion as Quat
+import cv2
 np.set_printoptions(suppress=True)
 
-def get_transform_from_pose(pose):
-    quat = Quat(pose[6], pose[3], pose[4], pose[5]) # Convert from ROS to pyquaternion convention
+def get_quat(arr):
+    return Quat(arr[3], arr[0], arr[1], arr[2]) # ROS to pyquaternion convention
+
+def get_tf_from_pose(pose):
+    quat = get_quat(pose[3:])
     transform = quat.transformation_matrix
     transform[0:3, 3] += pose[0:3]
     return transform
@@ -19,43 +24,81 @@ def get_pixel_coords(pose):
         [0.0, 0.0, 1.0]
     ])
 
-    # scale_x = 0.965 / 640 * K[0,0]
-    # scale_y = 0.965 / 480 * K[1,1]
-    scale_x = 1.27
-    scale_y = 1.27
+    objectPoints = np.array([pose[0:3]])
+    imagePoints, _ = cv2.projectPoints(objectPoints, np.array([0., 0., 0.]), np.array([0., 0., 0.]), K, None)
+    return imagePoints[0, 0]
 
-    K[0,0] = K[0,0]/scale_x
-    K[1,1] = K[1,1]/scale_y
-    res = np.matmul(K, pose[0:3])
-    res = res / res[2]
-    return res
-
-def get_grasp_pose_camera_frame(tool0_overhead_pose_world_frame, tool0_grasp_pose_world_frame):
-    # Adjust tool0_grasp_pose_world_frame for tool0 offset
-    tool0_grasp_pose_world_frame[2] -= 0.0226
-
-    world_to_tool0_overhead_tf = get_transform_from_pose(tool0_overhead_pose_world_frame)
+def plot_3d(poses, vectors):
+    fig = plt.figure()
+    ax = plt.axes(projection='3d')
+    x = [p[0] for p in poses]
+    y = [p[1] for p in poses]
+    z = [p[2] for p in poses]
+    ax.scatter3D(x, y, z, s=50)
     
-    camera_to_tool0_tf = np.array([ 
+    for p, v in zip(poses, vectors):
+        xline = [p[0], p[0]+0.1*v[0]]
+        yline = [p[1], p[1]+0.1*v[1]]
+        zline = [p[2], p[2]+0.1*v[2]]
+        ax.plot3D(xline, yline, zline)
+    
+    ax.set_xlim(-0.5, 0.5)
+    ax.set_ylim(0, 1)
+    ax.set_zlim(0, 1)
+    plt.show('3d.png')
+
+def get_dir_vecs(poses):
+    unit_q = Quat(0, 0, 0, 1)
+    vecs = []
+    for pose in poses:
+        quat = get_quat(pose[3:])
+        vec = ((quat*unit_q) * quat.conjugate).vector
+        vecs.append(vec)
+
+    return vecs
+
+def get_grasp_pose_camera_frame(pose_tool0home_w, pose_tool0grasp_w):
+    """
+    pose_tool0home_w: 6DOF pose of tool0 overhead in world frame
+    pose_tool0grasp_w: 6DOF pose of tool0 grasp in world frame
+    """
+    # Account for tool0 offset from ee
+    ee_offset = -0.226
+    pose_eegrasp_w = np.copy(pose_tool0grasp_w)
+    pose_eegrasp_w[2] += ee_offset
+
+    pose_eehome_w = np.copy(pose_tool0home_w)
+    pose_eehome_w[2] += ee_offset
+
+    # Get world coordinates of camera pose
+    tf_tool0_camera = np.array([
         [0.36685286, 0.93018527, -0.01320435, -0.03807055],
         [-0.9302708, 0.3668722, -0.00101334, -0.0164097],
         [0.00390172, 0.01265536, 0.99991231, 0.14671274],
         [0.,         0.,         0.,         1.]])
-    
-    world_to_overhead_camera_tf = np.linalg.inv(camera_to_tool0_tf).dot(np.linalg.inv(world_to_tool0_overhead_tf))
 
-    world_to_tool0_grasp_tf = get_transform_from_pose(tool0_grasp_pose_world_frame)
-    tool0_grasp_pose_camera_frame = world_to_overhead_camera_tf.dot(world_to_tool0_grasp_tf)
+    tf_world_tool0home = get_tf_from_pose(pose_tool0home_w)
+    tf_world_camerahome = tf_world_tool0home.dot(tf_tool0_camera)
 
-    return tool0_grasp_pose_camera_frame
+    # Get grasp position in camera frame
+    tf_world_tool0grasp = get_tf_from_pose(pose_eegrasp_w)
+    tf_camerahome_grasp_c = np.linalg.inv(tf_world_camerahome).dot(tf_world_tool0grasp) # in camera frame
+
+    # Visualize
+    q_camerahome = Quat(matrix=tf_world_camerahome[:3,:3])
+    pose_camerahome_w = list(tf_world_camerahome[0:3, 3]) + list(q_camerahome.vector) + [q_camerahome.real]
+
+    poses = [pose_tool0home_w, pose_tool0grasp_w, pose_eegrasp_w, pose_eehome_w, pose_camerahome_w]
+    vecs = get_dir_vecs(poses)
+    plot_3d(poses, vecs)
+
+    return tf_camerahome_grasp_c
 
 def get_grasp_pose_theta(overhead_pose, grasp_pose):
-    # Rotation in the z axis
-    q_overhead = Quat(overhead_pose[3], overhead_pose[0], overhead_pose[1], overhead_pose[2])
-    q_grasp = Quat(grasp_pose[3], grasp_pose[0], grasp_pose[1], grasp_pose[2])
+    q_overhead = Quat(overhead_pose[6], overhead_pose[3], overhead_pose[4], overhead_pose[5])
+    q_grasp = Quat(grasp_pose[6], grasp_pose[3], grasp_pose[4], grasp_pose[5])
 
     q_diff = q_grasp * q_overhead.inverse
-
     th_z = q_diff.radians
 
     print(th_z)
@@ -93,7 +136,7 @@ def visualize_grasp(name, pixels, theta, grasp_pos):
     plt.subplot(222)
     plt.imshow(im_approach)
     plt.subplot(223)
-    plt.text(0.1, 0.5, "%.2f, %.2f, %.2f" % (grasp_pos[0], grasp_pos[1], grasp_pos[2]))
+    plt.text(0.1, 0.5, "%.2f, %.2f, %.2f" % (pixels[0], pixels[1], theta))
     plt.subplot(224)
     plt.imshow(im_grasp)
 
@@ -114,5 +157,3 @@ if __name__ == '__main__':
         theta = get_grasp_pose_theta(overhead_pose, grasp_pose)
 
         visualize_grasp(folder, pixels, theta, grasp_pose[0:3])
-
-
