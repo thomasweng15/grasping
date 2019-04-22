@@ -57,7 +57,7 @@ def get_dir_vecs(poses):
 
     return vecs
 
-def get_grasp_pose_camera_frame(pose_tool0home_w, pose_tool0grasp_w):
+def get_grasp_pose_camera_frame(pose_tool0home_w, pose_tool0grasp_w, vis=False):
     """
     pose_tool0home_w: 6DOF pose of tool0 overhead in world frame
     pose_tool0grasp_w: 6DOF pose of tool0 grasp in world frame
@@ -84,13 +84,13 @@ def get_grasp_pose_camera_frame(pose_tool0home_w, pose_tool0grasp_w):
     tf_world_tool0grasp = get_tf_from_pose(pose_eegrasp_w)
     tf_camerahome_grasp_c = np.linalg.inv(tf_world_camerahome).dot(tf_world_tool0grasp) # in camera frame
 
-    # Visualize
-    q_camerahome = Quat(matrix=tf_world_camerahome[:3,:3])
-    pose_camerahome_w = list(tf_world_camerahome[0:3, 3]) + list(q_camerahome.vector) + [q_camerahome.real]
+    if vis:
+        q_camerahome = Quat(matrix=tf_world_camerahome[:3,:3])
+        pose_camerahome_w = list(tf_world_camerahome[0:3, 3]) + list(q_camerahome.vector) + [q_camerahome.real]
 
-    poses = [pose_tool0home_w, pose_tool0grasp_w, pose_eegrasp_w, pose_eehome_w, pose_camerahome_w]
-    vecs = get_dir_vecs(poses)
-    plot_3d(poses, vecs)
+        poses = [pose_tool0home_w, pose_tool0grasp_w, pose_eegrasp_w, pose_eehome_w, pose_camerahome_w]
+        vecs = get_dir_vecs(poses)
+        plot_3d(poses, vecs)
 
     return tf_camerahome_grasp_c
 
@@ -100,9 +100,6 @@ def get_grasp_pose_theta(overhead_pose, grasp_pose):
 
     q_diff = q_grasp * q_overhead.inverse
     th_z = q_diff.radians
-
-    print(th_z)
-    print(np.rad2deg(th_z))
     return -th_z
 
 def get_pose(dirname, filestr):
@@ -136,7 +133,7 @@ def visualize_grasp(name, pixels, theta, grasp_pos):
     plt.subplot(222)
     plt.imshow(im_approach)
     plt.subplot(223)
-    plt.text(0.1, 0.5, "%.2f, %.2f, %.2f" % (pixels[0], pixels[1], theta))
+    plt.text(0.1, 0.5, "%.2f, %.2f, %.2f" % (pixels[0], pixels[1], np.rad2deg(theta)))
     plt.subplot(224)
     plt.imshow(im_grasp)
 
