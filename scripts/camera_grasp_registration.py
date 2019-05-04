@@ -138,10 +138,12 @@ def visualize_grasp(name, pixels, theta, grasp_pos):
     plt.imshow(im_grasp)
 
     plt.savefig("../out/%s.png" % name)
+    print("saving")
+    np.save("../out/%s-params.npy" % name, [pixels, theta, im_overhead, grasp_pose])
     plt.close()
 
 if __name__ == '__main__':
-    for folder in sorted(os.listdir("../data")):
+    for folder in sorted(os.listdir("../data"))[0:2]:
         if "attempt" not in folder:
             continue
 
@@ -153,4 +155,4 @@ if __name__ == '__main__':
         pixels = get_pixel_coords(grasp_pose_camera_frame[0:4, 3])
         theta = get_grasp_pose_theta(overhead_pose, grasp_pose)
 
-        visualize_grasp(folder, pixels, theta, grasp_pose[0:3])
+        visualize_grasp(folder, pixels, theta, grasp_pose)
