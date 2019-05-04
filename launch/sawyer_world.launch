@@ -109,6 +109,6 @@
 
   <!-- Publish a static transform between the world and depth sensor  -->
   <node pkg="tf2_ros" type="static_transform_publisher"
-  name="primesense_to_world" args="1 0 1.75 1.57 3.14 0 base_footprint primesense" />
+  name="primesense_to_world" args="0.7933 0.0766 0.7655 0.70738 -0.70679 0.00137 0.00847 base primesense_rgb_optical_frame" />
 
 </launch>
