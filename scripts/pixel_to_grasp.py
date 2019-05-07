@@ -78,7 +78,8 @@ def get_tool0_tf(pose_tool0home_w, pose_tool0grasp_c, tf_tool0_camera):
     if True:
         tfs = [
             tf_world_tool0home,
-            tf_world_camerahome
+            tf_world_camerahome,
+            tf_world_tool0grasp
         ]
         fig = plt.figure()
         ax = plt.axes(projection='3d')
@@ -88,12 +89,12 @@ def get_tool0_tf(pose_tool0home_w, pose_tool0grasp_c, tf_tool0_camera):
         ax.scatter3D(x, y, z, s=50)
 
         vectors = get_dir_vecs(tfs)
-        for tf, v in vectors:
+        for tf, v, color in vectors:
             xline = [tf[0,3], tf[0,3]+0.1*v[0]]
             yline = [tf[1,3], tf[1,3]+0.1*v[1]]
             zline = [tf[2,3], tf[2,3]+0.1*v[2]]
 
-            ax.plot3D(xline, yline, zline)
+            ax.plot3D(xline, yline, zline, c=color)
 
         ax.set_xlim(-0.5, 0.5)
         ax.set_ylim(0, 1)
@@ -103,37 +104,6 @@ def get_tool0_tf(pose_tool0home_w, pose_tool0grasp_c, tf_tool0_camera):
     return tf_tool0home_tool0grasp
 
 def get_dir_vecs(tfs):
-    # q = Quat([0.707, 0, 0.707, 0])
-    # # q = Quat(axis=[1, 1, 1], degrees=90)
-    # unit = np.array([
-    #     [1, 0, 0, 0],
-    #     [0, 1, 0, 1],
-    #     [0, 0, 1, 0],
-    #     [0, 0, 0, 1]])
-    # print(q.transformation_matrix)
-    # print(q.transformation_matrix*unit)
-    # print(q.conjugate.transformation_matrix)
-    # print(q.conjugate.transformation_matrix*unit)
-
-    tf = tfs[0]
-
-    v_b = [
-        [1, 0, 0, 1],
-        [0, 1, 0, 0],
-        [0, 0, 1, 0],
-        [0, 0, 0, 1]
-    ]
-    v_a = np.linalg.inv(tf)*v_b
-    # print(tf)
-    # print(v_b)
-    # print(v_a)
-
-    # unit_x = Quat([0.707, 0.707, 0, 0])
-    # unit_y = Quat([0.707, 0, 0.707, 0])
-    # unit_z = Quat([0.707, 0, 0, 0.707])
-    # print(unit_x.elements)
-    # print(unit_y.elements)
-    # print(unit_z.elements)
     unit_x = [
         [1, 0, 0, 1],
         [0, 1, 0, 0],
@@ -154,9 +124,12 @@ def get_dir_vecs(tfs):
     ]
     vecs = []
     for tf in tfs:
-        for unit in [unit_x, unit_y, unit_z]:
-            vec = np.linalg.inv(tf)*unit
-            vecs.append((tf, vec[0:3, 3]))
+        vec = tf*unit_x
+        vecs.append((tf, vec[0:3, 3], 'red'))
+        vec = tf*unit_y
+        vecs.append((tf, vec[0:3, 3], 'green'))
+        vec = tf*unit_z
+        vecs.append((tf, vec[0:3, 3], 'blue'))
 
     return vecs
 
